@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>디버깅 버전 (CS-Convert)</title>
+  <style>
+    body { font-family: sans-serif; padding: 20px; }
+    textarea { width: 100%; margin: 10px 0; font-family: monospace; }
+    .log { 
+      background: #f0f0f0; 
+      padding: 10px; 
+      margin: 10px 0; 
+      font-family: monospace; 
+      border: 1px solid #ccc;
+      white-space: pre-wrap;
+    }
+    h4 { margin-bottom: 5px; }
+    .segment-code { color: blue; }
+    .segment-string { color: red; }
+  </style>
+</head>
+<body>
+  <h2>CS-Convert 디버깅 도구</h2>
+  <p>회사 환경에서 정규식 분리 및 치환 동작을 테스트하기 위한 간소화된 버전입니다.</p>
+
+  <h3>1. 테스트 입력 (SQL)</h3>
+  <textarea id="test" rows="3">SELECT @OLD_VAR1 WHERE name = '@OLD_VAR1'</textarea>
+  
+  <h3>2. 변수 설정</h3>
+  <label>변경 전: <input type="text" id="fromVar" value="@OLD_VAR1"></label>
+  <label>변경 후: <input type="text" id="toVar" value="@NEW_VAR1"></label>
+
+  <div style="margin-top: 10px;">
+    <button onclick="debugTest()">디버그 실행</button>
+  </div>
+  
+  <h3>3. 실행 로그</h3>
+  <div id="log" class="log">결과가 여기에 표시됩니다...</div>
+  
+  <script>
+    function debugTest() {
+      const sql = document.getElementById('test').value;
+      const fromVar = document.getElementById('fromVar').value;
+      const toVar = document.getElementById('toVar').value;
+      const log = document.getElementById('log');
+      
+      log.innerHTML = '<h4>[디버그 시작]</h4>';
+      
+      // 1단계: 정규식 분리 테스트
+      // 정규식: ('(?:''|[^'])*') -> 따옴표로 감싸진 문자열을 찾음 (이스케이프된 따옴표 '' 포함)
+      const splitRegex = /('(?:''|[^'])*')/g;
+      const segments = sql.split(splitRegex);
+      
+      log.innerHTML += `<strong>1. 분리된 세그먼트 (총 ${segments.length}개):</strong>\n`;
+      
+      let reconstructed = "";
+      
+      segments.forEach((seg, i) => {
+        const isStringLiteral = i % 2 === 1;
+        const type = isStringLiteral ? '문자열(건너뜀)' : '코드(치환대상)';
+        const colorClass = isStringLiteral ? 'segment-string' : 'segment-code';
+        
+        log.innerHTML += `[${i}] <span class="${colorClass}">"${seg}"</span> - ${type}\n`;
+        
+        // 2단계: 치환 시뮬레이션
+        if (!isStringLiteral) {
+            // 코드 영역에서만 치환 수행
+            const replaced = seg.split(fromVar).join(toVar); // 단순 문자열 치환으로 테스트
+            if (seg !== replaced) {
+                log.innerHTML += `    ↳ 치환됨: "${replaced}"\n`;
+            }
+            reconstructed += replaced;
+        } else {
+            reconstructed += seg;
+        }
+      });
+      
+      log.innerHTML += `\n<strong>2. 최종 결과:</strong>\n${reconstructed}`;
+      
+      // 3단계: 브라우저 정보
+      log.innerHTML += `\n\n<strong>3. 환경 정보:</strong>\nUserAgent: ${navigator.userAgent}`;
+    }
+  </script>
+</body>
+</html>
