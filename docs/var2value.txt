@@ -1,0 +1,19 @@
+# 화면요건입니다.
+1. index.html과 화면구조는 비슷합니다.
+2. 왼쪽에는 sql변환전 입력박스, 중간에는 변수 변환박스, 오른쪽에는 sql변환후 박스입니다.
+3. sql샘플은 아래와 같습니다.
+BEGIN
+/********************************************/
+/* PGM ID : test.sql                      */
+/* TARGET TABLE : test_table                */
+
+    DECLARE VS_PGM_ID STRING DEFAULT {PGM_ID};
+    DECLARE VS_TARGET_TABLE STRING DEFAULT {TARGET_TABLE};
+    DECLARE VS_JOB_DT STRING DEFAULT {JOB_DT};
+
+ENd;
+4. 위 sql샘플에서 {PGM_ID}는 test.sql 로 변환합니다.
+5. 위 sql샘플에서 {TARGET_TABLE}은 test_table 로 변환합니다.
+6. 위 sql샘플에서 {JOB_DT} 변수 변환박스에 변경전에 놓고, 변경후에는 default로 값을 놓습니다.
+7. "run"버튼을 누르면 변환 및 복사된 상태로 끝납니다.
+8. 파일은 var2value.html 이며 자바스크립트명은 var2value.js입니다

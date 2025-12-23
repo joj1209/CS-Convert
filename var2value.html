@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <title>VAR → VALUE 변환</title>
+</head>
+<body>
+  <h2>VAR → VALUE 변환</h2>
+
+  <div style="display:flex; gap:10px; align-items:flex-start;">
+    <!-- 왼쪽: sql변환전 입력박스 -->
+    <div style="flex:1;">
+      <h3>sql변환전</h3>
+      <textarea id="inputQuery" rows="25" cols="60" style="width:100%; height:500px;">BEGIN
+/********************************************/
+/* PGM ID : test.sql                      */
+/* TARGET TABLE : test_table                */
+
+    DECLARE VS_PGM_ID STRING DEFAULT {PGM_ID};
+    DECLARE VS_TARGET_TABLE STRING DEFAULT {TARGET_TABLE};
+    DECLARE VS_JOB_DT STRING DEFAULT {JOB_DT};
+
+ENd;</textarea>
+    </div>
+
+    <!-- 가운데: 변수 변환박스 -->
+    <div style="flex:0.8;">
+      <h3>변수 변환</h3>
+      <p>같은 행의 왼쪽(변경전)과 오른쪽(변경후)을 1:1 매칭합니다.</p>
+
+      <div>
+        <div style="display:flex; font-weight:bold; margin-bottom:4px;">
+          <div style="flex:1;">변경전</div>
+          <div style="flex:1;">변경후</div>
+        </div>
+
+        <div style="display:flex; gap:4px; margin-bottom:2px;">
+          <input class="beforeVar" type="text" style="flex:1;" value="{PGM_ID}" />
+          <input class="afterVar"  type="text" style="flex:1;" value="test.sql" />
+        </div>
+
+        <div style="display:flex; gap:4px; margin-bottom:2px;">
+          <input class="beforeVar" type="text" style="flex:1;" value="{TARGET_TABLE}" />
+          <input class="afterVar"  type="text" style="flex:1;" value="test_table" />
+        </div>
+
+        <div style="display:flex; gap:4px; margin-bottom:2px;">
+          <input class="beforeVar" type="text" style="flex:1;" value="{JOB_DT}" />
+          <input class="afterVar"  type="text" style="flex:1;" value="default" />
+        </div>
+      </div>
+
+      <div style="margin-top:12px;">
+        <button id="runBtn" type="button">run</button>
+      </div>
+    </div>
+
+    <!-- 오른쪽: sql변환후 박스 -->
+    <div style="flex:1;">
+      <h3>sql변환후</h3>
+      <textarea id="outputQuery" rows="25" cols="60" style="width:100%; height:500px;" readonly
+        placeholder="변환된 SQL이 여기에 표시됩니다."></textarea>
+    </div>
+  </div>
+
+  <script src="js/var2value.js"></script>
+</body>
+</html>
