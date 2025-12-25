@@ -3,8 +3,8 @@ BEGIN
 /* PGM ID : test.sql                      */
 /* TARGET TABLE : test_table                */
 
-    DECLARE VS_PGM_ID STRING DEFAULT {PGM_ID};
-    DECLARE VS_TARGET_TABLE STRING DEFAULT {TARGET_TABLE};
-    DECLARE VS_JOB_DT STRING DEFAULT {JOB_DT};
+    DECLARE vs_job_d STRING DEFAULT {vs_job_d};
+    DECLARE vs_pgm_id STRING DEFAULT {vs_pgm_id};
+    DECLARE vs_tbl_nm STRING DEFAULT {vs_tbl_nm};
 
 ENd;
