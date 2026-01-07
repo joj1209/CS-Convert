@@ -19,11 +19,35 @@ window.onerror = function (msg, src, lineno, colno, err) {
     return match ? match[1].trim() : '';
   }
 
-  function autofillMappingsFromSql(sql) {
-    const pgmId = extractHeaderValue(sql, 'PGM ID');
-    const targetTable = extractHeaderValue(sql, 'TARGET TABLE');
+  function extractProgramIdFromLogDeclare(sql) {
+    // Example:
+    // DECLARE `log_프로그램ID` STRING DEFAULT 'wcsbv_서비스내역01';
+    // Also supports commented form:
+    // --DECLARE `log_프로그램ID` STRING DEFAULT 'wcsbv_서비스내역01';
+    const re = /(?:--\s*)?DECLARE\s+`?log_프로그램ID`?\s+STRING\s+DEFAULT\s+'([^']*)'\s*;/i;
+    const match = re.exec(sql);
+    return match ? (match[1] ?? '').trim() : '';
+  }
 
-    if (!pgmId && !targetTable) return;
+  function extractServiceName(programId) {
+    const s = (programId ?? '').toString();
+    if (!s) return '';
+
+    // Derive a logical "service name" from programId.
+    // Common pattern: <prefix>_<name><digits>  (e.g. wcsbv_서비스내역01 -> 서비스내역)
+    // If there are multiple underscores, keep everything after the first underscore.
+    const parts = s.split('_');
+    const candidate = parts.length > 1 ? parts.slice(1).join('_') : s;
+    const withoutTrailingDigits = candidate.replace(/\d+$/g, '').trim();
+    return withoutTrailingDigits || candidate.trim();
+  }
+
+  function autofillMappingsFromSql(sql) {
+    // DM/legacy mappings: only auto-fill from SQL header comments.
+    const headerPgmId = extractHeaderValue(sql, 'PGM ID');
+    const headerTargetTable = extractHeaderValue(sql, 'TARGET TABLE');
+
+    if (!headerPgmId && !headerTargetTable) return;
 
     const beforeInputs = Array.from(document.querySelectorAll('.beforeVar'));
     const afterInputs = Array.from(document.querySelectorAll('.afterVar'));
@@ -31,8 +55,68 @@ window.onerror = function (msg, src, lineno, colno, err) {
 
     for (let i = 0; i < len; i++) {
       const from = normalizeToken(beforeInputs[i].value);
-      if ((from === '{vs_pgm_id}' || from === '{PGM_ID}') && pgmId) afterInputs[i].value = pgmId;
-      if ((from === '{vs_tbl_nm}' || from === '{TARGET_TABLE}') && targetTable) afterInputs[i].value = targetTable;
+      const currentTo = (afterInputs[i].value ?? '').trim();
+
+      if ((from === '{vs_pgm_id}' || from === '{PGM_ID}' || from === '@program_id') && headerPgmId) {
+        afterInputs[i].value = headerPgmId;
+        continue;
+      }
+
+      if ((from === '{vs_tbl_nm}' || from === '{TARGET_TABLE}' || from === '@target_table') && headerTargetTable) {
+        afterInputs[i].value = headerTargetTable;
+        continue;
+      }
+
+      // Standard date default in DM-style mappings
+      if ((from === '{vs_job_d}' || from === '@standard_date') && !currentTo) {
+        afterInputs[i].value = 'default';
+      }
+    }
+  }
+
+  function autofillDwMappingsFromSql(sql) {
+    const headerPgmId = extractHeaderValue(sql, 'PGM ID');
+    // Input SQL is one of two formats:
+    // - If PGM ID header exists, prefer that format for parsing
+    // - Otherwise parse from log_프로그램ID DECLARE (quoted literal, comment allowed)
+    const programId = headerPgmId || extractProgramIdFromLogDeclare(sql);
+
+    const serviceName = extractServiceName(programId);
+    const dwTargetTable = serviceName ? `DW.${serviceName}` : '';
+    const dwTempTable = serviceName ? `DWWRK.${serviceName}` : '';
+
+    const beforeInputs = Array.from(document.querySelectorAll('.beforeVarDw'));
+    const afterInputs = Array.from(document.querySelectorAll('.afterVarDw'));
+    const len = Math.min(beforeInputs.length, afterInputs.length);
+
+    for (let i = 0; i < len; i++) {
+      const from = normalizeToken(beforeInputs[i].value);
+      const currentTo = (afterInputs[i].value ?? '').trim();
+
+      if (from === '@standard_date') {
+        if (!currentTo) afterInputs[i].value = 'default';
+        continue;
+      }
+
+      if (from === '@job_seq') {
+        if (!currentTo) afterInputs[i].value = '';
+        continue;
+      }
+
+      if (from === '@program_id') {
+        if (!currentTo && programId) afterInputs[i].value = programId;
+        continue;
+      }
+
+      if (from === '@target_table') {
+        if (!currentTo && dwTargetTable) afterInputs[i].value = dwTargetTable;
+        continue;
+      }
+
+      if (from === '@temp_table') {
+        if (!currentTo && dwTempTable) afterInputs[i].value = dwTempTable;
+        continue;
+      }
     }
   }
 
@@ -40,9 +124,9 @@ window.onerror = function (msg, src, lineno, colno, err) {
     return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   }
 
-  function parseMappings() {
-    const beforeInputs = Array.from(document.querySelectorAll('.beforeVar'));
-    const afterInputs = Array.from(document.querySelectorAll('.afterVar'));
+  function parseMappings(beforeSelector = '.beforeVar', afterSelector = '.afterVar') {
+    const beforeInputs = Array.from(document.querySelectorAll(beforeSelector));
+    const afterInputs = Array.from(document.querySelectorAll(afterSelector));
 
     const len = Math.min(beforeInputs.length, afterInputs.length);
     const pairs = [];
@@ -55,6 +139,38 @@ window.onerror = function (msg, src, lineno, colno, err) {
       pairs.push({ from, to: (to ?? '').trim() });
     }
 
+    return pairs;
+  }
+
+  function mergePairs(...pairLists) {
+    const map = new Map();
+    for (const list of pairLists) {
+      for (const pair of list) {
+        if (!pair || !pair.from) continue;
+        map.set(pair.from, pair.to ?? '');
+      }
+    }
+    return Array.from(map.entries()).map(([from, to]) => ({ from, to }));
+  }
+
+  function buildDmHeaderDerivedPairs(sql) {
+    const headerPgmId = extractHeaderValue(sql, 'PGM ID');
+    const headerTargetTable = extractHeaderValue(sql, 'TARGET TABLE');
+
+    const pairs = [];
+    if (headerPgmId) {
+      pairs.push({ from: '@program_id', to: headerPgmId });
+      pairs.push({ from: '{vs_pgm_id}', to: headerPgmId });
+      pairs.push({ from: '{PGM_ID}', to: headerPgmId });
+    }
+    if (headerTargetTable) {
+      pairs.push({ from: '@target_table', to: headerTargetTable });
+      pairs.push({ from: '{vs_tbl_nm}', to: headerTargetTable });
+      pairs.push({ from: '{TARGET_TABLE}', to: headerTargetTable });
+    }
+    // DM rule: map standard date to 'default'
+    pairs.push({ from: '@standard_date', to: 'default' });
+    pairs.push({ from: '{vs_job_d}', to: 'default' });
     return pairs;
   }
 
@@ -106,9 +222,28 @@ window.onerror = function (msg, src, lineno, colno, err) {
     runBtn.addEventListener('click', function () {
       const input = byId('inputQuery').value;
 
+      const headerPgmId = extractHeaderValue(input, 'PGM ID');
+      const isDmFormat = !!headerPgmId;
+
       // Auto-fill PGM ID / TARGET TABLE from SQL header comments if present.
       autofillMappingsFromSql(input);
-      const pairs = parseMappings();
+
+      // DW rules are only used when PGM ID header is NOT present.
+      if (!isDmFormat) {
+        autofillDwMappingsFromSql(input);
+      }
+
+      const pairsDm = parseMappings('.beforeVar', '.afterVar');
+
+      let pairs;
+      if (isDmFormat) {
+        // DM format: apply DM mappings only, plus header-derived mapping for @-tokens.
+        // Keep DM behavior deterministic when header exists.
+        pairs = mergePairs(buildDmHeaderDerivedPairs(input), pairsDm);
+      } else {
+        const pairsDw = parseMappings('.beforeVarDw', '.afterVarDw');
+        pairs = mergePairs(pairsDm, pairsDw);
+      }
 
       const output = applyMappings(input, pairs);
       byId('outputQuery').value = output;
