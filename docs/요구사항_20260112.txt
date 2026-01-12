@@ -1,0 +1,67 @@
+# 화면요건입니다.
+1. variable-mapper.html과 화면구조는 비슷합니다.
+2. 왼쪽에는 sql변환전 입력박스, 중간에는 변수 변환박스, 오른쪽에는 sql변환후 박스입니다.
+3. 프로그램타입은 2개(DW,DM)가 있습니다.
+   - DW변환버튼
+   - DM변환버튼
+   - 2개의 버튼으로 아래의 sql을 타입에 따라서 변환합니다.
+
+4. DW타입의 샘플 sql
+BEGIN
+/*********************************************************/
+
+    -- DECLARE `log_프로그램ID` STRING DEFAULT 'wzaw_서비스내역00';
+    DECLARE `log_프로그램ID` STRING DEFAULT @program_id;
+	DECLARE `log_기준일자` STRING DEFAULT @standard_date;
+	DECLARE `log_타겟테이블명` STRING DEFAULT @target_table;
+	DECLARE `log_작업차수` STRING DEFAULT @job_seq;
+    DECLARE `log_임시테이블명` STRING DEFAULT @temp_table;
+
+    select `edw_전월` from tab_a;
+    select `edw_2달전` from tab_a;
+END;
+
+4.1 DW타입 변환규칙
+  - @program_id : 주석되어 있는 "-- DECLARE `log_프로그램ID`"의 끝에 "wzaw_서비스내역00" 를 
+  - @standard_date : 변수 변환박스에 변경전에 놓고, 변경후에는 '99991231'로 값을 놓습니다.
+  - @target_table : "wzaw_서비스내역00"에서 "서비스내역" 으로 파싱하여 "DW.서비스내역"으로 변환합니다. (값이 달라지므로 하드코딩하지 말것)
+  - @job_seq : 변수 변환박스에 변경전에 놓고, 변경후에는 ''로 값을 놓습니다.
+  - @target_table : "wzaw_서비스내역00"에서 "서비스내역" 으로 파싱하여 "DWWRK.서비스내역"으로 변환합니다. (값이 달라지므로 하드코딩하지 말것)
+
+  * 아래의 변수는 늘어날수 있으며, 변경전 박스와 변겨후 박스에 값을 놓습니다.
+  - `edw_전월` : 변수 변환박스에 변경전에 놓고, 변경후에는 '999912'로 값을 놓습니다.
+  - `edw_2달전` : 변수 변환박스에 변경전에 놓고, 변경후에는 '999912'로 값을 놓습니다.
+
+5. DM타입의 샘플
+BEGIN
+/*********************************************************/
+/* PGM ID : wzaw_공통코드00.sql                        */
+/* TBL_ID : BM.공통코드                              */
+/*********************************************************/
+    -- ===================================
+    -- 1. 변수 선언 (DECLARE)
+    -- ===================================
+    DECLARE vs_target_date DATE DEFAULT DATE('2025-12-10');
+    DECLARE vs_min_amount NUMERIC DEFAULT 1000.00;
+    DECLARE vs_record_count INT64;
+
+    DECLARE vs_pgm_id STRING DEFAULT @program_id;
+	DECLARE vs_job_d STRING DEFAULT @standard_date;
+	DECLARE vs_tbl_nm STRING DEFAULT @table_name;
+
+    select vs_job_d;
+    select vs_job_yyyymm;
+END;
+
+5.1 DW타입 변환규칙
+ - @program_id는 'wzaw_공통코드00' 로 변환합니다. (주석의 "PGM ID"가 힌트입니다.)
+ - @standard_date : 변수 변환박스에 변경전에 놓고, 변경후에는 '99991231'로 값을 놓습니다.
+ - @table_name : 'BM.공통코드' 로 변환합니다. (주석의 "TBL_ID"가 힌트입니다.)
+
+  * 아래의 변수는 늘어날수 있으며, 변경전 박스와 변겨후 박스에 값을 놓습니다.
+  - `vs_job_d` : 변수 변환박스에 변경전에 놓고, 변경후에는 '999912'로 값을 놓습니다.
+  - `vs_job_yyyymm` : 변수 변환박스에 변경전에 놓고, 변경후에는 '999912'로 값을 놓습니다.
+
+6. 파일은 comMapper.html 이며 자바스크립트명은 comMapper.js입니다.
+7. 변환후에는 자동복사된 상태입니다.
+8. return match ? (match[1] ?? '').trim() : ''; 에서 [ts] expression expected. [1109] any 오류를 회피하는 코드로 작성하시오
