@@ -33,6 +33,11 @@ SELECT :OLD_VAR FROM table;                   -- 이 부분만 치환됨
 - **구분함**: 정확히 일치하는 경우만 치환
 - **구분하지 않음** (기본값): 대소문자 무관하게 치환
 
+### 3. 한글 식별자 백틱 래핑(BigQuery)
+- 한글(예: 변수명/컬럼명/테이블명)이 포함된 식별자를 BigQuery에서 사용 가능하도록 `...`로 감싸는 보조 화면 제공
+- 화면: `backtick-wrapper.html`
+- 문서: `docs/backtick-wrapper-guide.md`
+
 ## 🚀 사용 방법
 
 ### 1단계: 쿼리 입력

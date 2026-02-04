@@ -1,5 +1,17 @@
 # API 문서
 
+## 화면(엔트리포인트) 요약
+
+이 문서는 함수 레퍼런스가 중심이지만, 프로젝트 내 주요 화면(HTML)과 연결된 스크립트를 빠르게 찾을 수 있도록 엔트리포인트를 함께 정리합니다.
+
+- 기본 변수 치환 도우미: `index.html` → `js/script.js`
+  - 사용 가이드: `docs/usage-guide.md`
+  - 상세 설명: `docs/script-js.md`
+- DW/DM 공통 변수 변환: `comMapper.html` → `js/comMapper.js`
+- VAR → VALUE 변환: `variable-mapper.html` → `js/variable-mapper.js`
+- 한글 식별자 → 백틱 래핑(BigQuery): `backtick-wrapper.html` → `js/backtick-wrapper.js`
+  - 상세 문서: `docs/backtick-wrapper-guide.md`
+
 ## 함수 레퍼런스
 
 이 문서는 CS-Convert의 JavaScript 함수들에 대한 상세한 기술 문서입니다.
