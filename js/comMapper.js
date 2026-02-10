@@ -166,6 +166,57 @@ window.onerror = function (msg, src, lineno, colno, err) {
     return out;
   }
 
+  function mergeMappings(defaultMappings, userMappings) {
+    var defaults = Array.isArray(defaultMappings) ? defaultMappings : [];
+    var users = Array.isArray(userMappings) ? userMappings : [];
+
+    var userMap = new Map();
+    for (var i = 0; i < users.length; i++) {
+      var um = users[i];
+      if (!um || !um.from) continue;
+      userMap.set(String(um.from), {
+        from: String(um.from),
+        to: (um.to === null || um.to === undefined) ? '' : String(um.to)
+      });
+    }
+
+    var out = [];
+    var seen = new Set();
+
+    // Keep default order, but allow user-entered "to" to override when provided.
+    for (var j = 0; j < defaults.length; j++) {
+      var dm = defaults[j];
+      if (!dm || !dm.from) continue;
+      var key = String(dm.from);
+      var to = (dm.to === null || dm.to === undefined) ? '' : String(dm.to);
+
+      if (userMap.has(key)) {
+        var userTo = userMap.get(key).to;
+        if (String(userTo).trim() !== '') {
+          to = userTo;
+        }
+      }
+
+      out.push({ from: key, to: to });
+      seen.add(key);
+    }
+
+    // Append user-added mappings not present in defaults.
+    for (var k = 0; k < users.length; k++) {
+      var extra = users[k];
+      if (!extra || !extra.from) continue;
+      var extraKey = String(extra.from);
+      if (seen.has(extraKey)) continue;
+      out.push({
+        from: extraKey,
+        to: (extra.to === null || extra.to === undefined) ? '' : String(extra.to)
+      });
+      seen.add(extraKey);
+    }
+
+    return normalizeAndDedupeMappings(out);
+  }
+
   function renderMappings(mappings) {
     var container = byId('mappingRows');
     if (!container) return;
@@ -276,12 +327,13 @@ window.onerror = function (msg, src, lineno, colno, err) {
 
     var sql = inputEl.value || '';
 
+    // User-entered values in the UI should take precedence once provided.
+    var userMappings = readMappingsFromUi();
     var defaultMappings = (mode === 'DW') ? buildDwMappings(sql) : buildDmMappings(sql);
-    renderMappings(defaultMappings);
+    var mergedMappings = mergeMappings(defaultMappings, userMappings);
+    renderMappings(mergedMappings);
 
-    // Allow user edits by reading back from UI (even in the first run)
-    var mappings = readMappingsFromUi();
-    var effectiveMappings = filterMappingsByOption(mappings);
+    var effectiveMappings = filterMappingsByOption(mergedMappings);
     var outSql = applyMappings(sql, effectiveMappings);
 
     outputEl.value = outSql;
