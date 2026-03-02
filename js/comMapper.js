@@ -327,13 +327,17 @@ window.onerror = function (msg, src, lineno, colno, err) {
 
     var sql = inputEl.value || '';
 
+    var useUiEl = byId('useUiMappings');
+    var useUiMappings = !!(useUiEl && useUiEl.checked);
+
     // User-entered values in the UI should take precedence once provided.
     var userMappings = readMappingsFromUi();
     var defaultMappings = (mode === 'DW') ? buildDwMappings(sql) : buildDmMappings(sql);
     var mergedMappings = mergeMappings(defaultMappings, userMappings);
     renderMappings(mergedMappings);
 
-    var effectiveMappings = filterMappingsByOption(mergedMappings);
+    var baseMappingsForConversion = useUiMappings ? mergedMappings : defaultMappings;
+    var effectiveMappings = filterMappingsByOption(baseMappingsForConversion);
     var outSql = applyMappings(sql, effectiveMappings);
 
     outputEl.value = outSql;
