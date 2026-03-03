@@ -217,13 +217,32 @@ window.onerror = function (msg, src, lineno, colno, err) {
     return normalizeAndDedupeMappings(out);
   }
 
-  function renderMappings(mappings) {
+  function renderMappings(mergedMappings, defaultMappings, userMappings, useUiMappings) {
     var container = byId('mappingRows');
     if (!container) return;
 
     container.innerHTML = '';
 
-    for (var i = 0; i < mappings.length; i++) {
+    var merged = Array.isArray(mergedMappings) ? mergedMappings : [];
+    var defaults = Array.isArray(defaultMappings) ? defaultMappings : [];
+    var users = Array.isArray(userMappings) ? userMappings : [];
+
+    var defaultMap = new Map();
+    for (var d = 0; d < defaults.length; d++) {
+      if (!defaults[d] || !defaults[d].from) continue;
+      defaultMap.set(String(defaults[d].from), (defaults[d].to === null || defaults[d].to === undefined) ? '' : String(defaults[d].to));
+    }
+
+    var userMap = new Map();
+    for (var u = 0; u < users.length; u++) {
+      if (!users[u] || !users[u].from) continue;
+      userMap.set(String(users[u].from), (users[u].to === null || users[u].to === undefined) ? '' : String(users[u].to));
+    }
+
+    for (var i = 0; i < merged.length; i++) {
+      var key = merged[i] ? String(merged[i].from || '') : '';
+      if (!key) continue;
+
       var row = document.createElement('div');
       row.style.display = 'flex';
       row.style.gap = '4px';
@@ -233,17 +252,58 @@ window.onerror = function (msg, src, lineno, colno, err) {
       before.type = 'text';
       before.className = 'beforeVar';
       before.style.flex = '1';
-      before.value = mappings[i].from;
+      before.value = key;
 
       var after = document.createElement('input');
       after.type = 'text';
       after.className = 'afterVar';
       after.style.flex = '1';
-      after.value = mappings[i].to;
+
+      // Cache both default and user-entered values so toggling doesn't lose edits.
+      var defaultTo = defaultMap.has(key) ? defaultMap.get(key) : '';
+      var userTo = userMap.has(key) ? userMap.get(key) : '';
+
+      // For user-added rows (not present in defaults), treat userTo as the "default" so it stays visible.
+      if (!defaultMap.has(key)) {
+        defaultTo = userTo;
+      }
+
+      after.dataset.defaultTo = defaultTo;
+      after.dataset.userTo = userTo;
+
+      var showValue;
+      if (useUiMappings && String(userTo).trim() !== '') {
+        showValue = userTo;
+      } else {
+        showValue = defaultTo;
+      }
+      after.value = showValue;
+
+      after.addEventListener('input', function (e) {
+        // Persist user-entered value even if UI later shows defaults.
+        var el = e && e.target;
+        if (!el) return;
+        el.dataset.userTo = (el.value === null || el.value === undefined) ? '' : String(el.value);
+      });
 
       row.appendChild(before);
       row.appendChild(after);
       container.appendChild(row);
+    }
+  }
+
+  function applyUseUiMappingsToRenderedRows(useUiMappings) {
+    var afterInputs = Array.from(document.querySelectorAll('#mappingRows .afterVar'));
+    for (var i = 0; i < afterInputs.length; i++) {
+      var after = afterInputs[i];
+      var defaultTo = (after.dataset && typeof after.dataset.defaultTo === 'string') ? after.dataset.defaultTo : '';
+      var userTo = (after.dataset && typeof after.dataset.userTo === 'string') ? after.dataset.userTo : '';
+
+      if (useUiMappings && String(userTo).trim() !== '') {
+        after.value = userTo;
+      } else {
+        after.value = defaultTo;
+      }
     }
   }
 
@@ -256,7 +316,10 @@ window.onerror = function (msg, src, lineno, colno, err) {
     for (var i = 0; i < len; i++) {
       var from = normalizeToken(beforeInputs[i].value);
       if (!from) continue;
-      var to = afterInputs[i].value;
+      var afterEl = afterInputs[i];
+      // Prefer cached user-entered value if present (so it survives when UI is showing defaults).
+      var cachedUserTo = (afterEl && afterEl.dataset && typeof afterEl.dataset.userTo === 'string') ? afterEl.dataset.userTo : null;
+      var to = (cachedUserTo !== null) ? cachedUserTo : afterEl.value;
       mappings.push({ from: from, to: (to === null || to === undefined) ? '' : String(to).trim() });
     }
     return mappings;
@@ -334,8 +397,12 @@ window.onerror = function (msg, src, lineno, colno, err) {
     var userMappings = readMappingsFromUi();
     var defaultMappings = (mode === 'DW') ? buildDwMappings(sql) : buildDmMappings(sql);
     var mergedMappings = mergeMappings(defaultMappings, userMappings);
-    renderMappings(mergedMappings);
 
+    // Keep the UI in sync with this conversion, while preserving user-entered values.
+    renderMappings(mergedMappings, defaultMappings, userMappings, useUiMappings);
+
+    // - When "가운데 변환박스(매핑) 값 적용" is unchecked, conversion uses defaultMappings.
+    // - When checked, conversion uses mergedMappings (defaults + user-entered overrides).
     var baseMappingsForConversion = useUiMappings ? mergedMappings : defaultMappings;
     var effectiveMappings = filterMappingsByOption(baseMappingsForConversion);
     var outSql = applyMappings(sql, effectiveMappings);
@@ -356,6 +423,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
   function attachHandlers() {
     var dwBtn = byId('convertDwBtn');
     var dmBtn = byId('convertDmBtn');
+    var useUiEl = byId('useUiMappings');
     if (!dwBtn || !dmBtn) {
       console.warn('[comMapper.js] 버튼을 아직 못 찾음. 100ms 후 재시도');
       return setTimeout(attachHandlers, 100);
@@ -363,6 +431,12 @@ window.onerror = function (msg, src, lineno, colno, err) {
 
     dwBtn.addEventListener('click', function () { convert('DW'); });
     dmBtn.addEventListener('click', function () { convert('DM'); });
+
+    if (useUiEl) {
+      useUiEl.addEventListener('change', function () {
+        applyUseUiMappingsToRenderedRows(!!useUiEl.checked);
+      });
+    }
   }
 
   if (document.readyState === 'loading') {
