@@ -196,6 +196,139 @@ window.onerror = function (msg, src, lineno, colno, err) {
     return { text: out, wrapCount: wrapCount };
   }
 
+  function removeBackticks(sql, options) {
+    var out = '';
+    var i = 0;
+    var removedCount = 0;
+
+    var skipStrings = !!options.skipStrings;
+    var skipComments = !!options.skipComments;
+
+    // States
+    var NORMAL = 0;
+    var SINGLE = 1;
+    var DOUBLE = 2;
+    var LINE_COMMENT = 3;
+    var BLOCK_COMMENT = 4;
+
+    var state = NORMAL;
+
+    while (i < sql.length) {
+      var ch = sql[i];
+      var next = (i + 1 < sql.length) ? sql[i + 1] : '';
+
+      if (state === NORMAL) {
+        if (skipComments && ch === '-' && next === '-') {
+          state = LINE_COMMENT;
+          out += ch + next;
+          i += 2;
+          continue;
+        }
+        if (skipComments && ch === '/' && next === '*') {
+          state = BLOCK_COMMENT;
+          out += ch + next;
+          i += 2;
+          continue;
+        }
+        if (skipStrings && ch === "'") {
+          state = SINGLE;
+          out += ch;
+          i += 1;
+          continue;
+        }
+        if (skipStrings && ch === '"') {
+          state = DOUBLE;
+          out += ch;
+          i += 1;
+          continue;
+        }
+
+        if (ch === '`') {
+          // If there is no closing backtick, keep as-is (safer than dropping it)
+          var closeIdx = sql.indexOf('`', i + 1);
+          if (closeIdx === -1) {
+            out += ch;
+            i += 1;
+            continue;
+          }
+
+          // Remove opening backtick
+          removedCount += 1;
+          i += 1;
+
+          // Copy identifier content until closing backtick
+          while (i < sql.length) {
+            ch = sql[i];
+            if (ch === '`') {
+              removedCount += 1;
+              i += 1;
+              break;
+            }
+            out += ch;
+            i += 1;
+          }
+          continue;
+        }
+
+        out += ch;
+        i += 1;
+        continue;
+      }
+
+      if (state === SINGLE) {
+        out += ch;
+        i += 1;
+        if (ch === "'") {
+          // escaped '' inside string
+          if (i < sql.length && sql[i] === "'") {
+            out += sql[i];
+            i += 1;
+          } else {
+            state = NORMAL;
+          }
+        }
+        continue;
+      }
+
+      if (state === DOUBLE) {
+        out += ch;
+        i += 1;
+        if (ch === '"') {
+          // escaped "" inside quoted text
+          if (i < sql.length && sql[i] === '"') {
+            out += sql[i];
+            i += 1;
+          } else {
+            state = NORMAL;
+          }
+        }
+        continue;
+      }
+
+      if (state === LINE_COMMENT) {
+        out += ch;
+        i += 1;
+        if (ch === '\n') {
+          state = NORMAL;
+        }
+        continue;
+      }
+
+      if (state === BLOCK_COMMENT) {
+        out += ch;
+        i += 1;
+        if (ch === '*' && i < sql.length && sql[i] === '/') {
+          out += '/';
+          i += 1;
+          state = NORMAL;
+        }
+        continue;
+      }
+    }
+
+    return { text: out, removedCount: removedCount };
+  }
+
   function convert() {
     var input = (byId('inputSql').value ?? '').toString();
 
@@ -232,6 +365,38 @@ window.onerror = function (msg, src, lineno, colno, err) {
       });
   }
 
+  function removeBackticksAction() {
+    var input = (byId('inputSql').value ?? '').toString();
+
+    var options = {
+      skipStrings: !!(byId('skipStrings') && byId('skipStrings').checked),
+      skipComments: !!(byId('skipComments') && byId('skipComments').checked)
+    };
+
+    var result = removeBackticks(input, options);
+
+    byId('outputSql').value = result.text;
+    byId('wrapCount').textContent = String(result.removedCount);
+
+    var autoCopy = !!(byId('autoCopy') && byId('autoCopy').checked);
+    if (!autoCopy) {
+      setStatus('백틱 제거 완료', false);
+      return;
+    }
+
+    copyToClipboard(result.text)
+      .then(function () {
+        setStatus('백틱 제거 완료 + 자동 복사 완료', false);
+      })
+      .catch(function (err) {
+        console.error('[backtick-wrapper.js] 자동 복사 실패:', err);
+        setStatus('백틱 제거는 완료했지만 자동 복사에 실패했습니다. 출력창을 선택 후 Ctrl+C 하세요.', true);
+        var outEl = byId('outputSql');
+        outEl.focus();
+        outEl.select();
+      });
+  }
+
   function clearAll() {
     byId('inputSql').value = '';
     byId('outputSql').value = '';
@@ -253,6 +418,13 @@ window.onerror = function (msg, src, lineno, colno, err) {
     convertBtn.addEventListener('click', function () {
       convert();
     });
+
+    var removeBtn = byId('removeBackticksBtn');
+    if (removeBtn) {
+      removeBtn.addEventListener('click', function () {
+        removeBackticksAction();
+      });
+    }
 
     byId('copyBtn').addEventListener('click', function () {
       var text = (byId('outputSql').value ?? '').toString();
