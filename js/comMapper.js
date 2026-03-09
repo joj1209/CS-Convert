@@ -59,6 +59,51 @@ window.onerror = function (msg, src, lineno, colno, err) {
     return v.replace(/\.sql\s*$/i, '');
   }
 
+  function isMonthlyProgramId(programId) {
+    // Requirement: when PGM ID contains "%월%" (LIKE-style meaning: contains "월"),
+    // treat @standard_date as yyyymm (6 digits).
+    var v = normalizeToken(programId);
+    if (!v) return false;
+    // Support both literal pattern string and the intended "contains 월" semantics.
+    return (v.indexOf('%월%') >= 0) || (v.indexOf('월') >= 0);
+  }
+
+  function coerceStandardDateToYyyymm(toLiteral) {
+    // Supports: 'yyyymmdd' -> 'yyyymm', yyyymmdd -> yyyymm
+    // Leaves other expressions as-is.
+    var s = (toLiteral === null || toLiteral === undefined) ? '' : String(toLiteral).trim();
+    if (!s) return s;
+
+    var m = /^'(\d{8})'$/.exec(s);
+    if (m) return "'" + m[1].slice(0, 6) + "'";
+
+    m = /^'(\d{6})'$/.exec(s);
+    if (m) return s;
+
+    m = /^(\d{8})$/.exec(s);
+    if (m) return m[1].slice(0, 6);
+
+    m = /^(\d{6})$/.exec(s);
+    if (m) return s;
+
+    return s;
+  }
+
+  function coerceMappingsForMonthlyProgram(mappings, isMonthly) {
+    if (!isMonthly) return mappings;
+    var list = Array.isArray(mappings) ? mappings : [];
+    var out = [];
+    for (var i = 0; i < list.length; i++) {
+      var m = list[i];
+      if (m && m.from === '@standard_date') {
+        out.push({ from: m.from, to: coerceStandardDateToYyyymm(m.to) });
+      } else {
+        out.push(m);
+      }
+    }
+    return out;
+  }
+
   function collectBacktickedIdentifiers(sql) {
     // returns array of tokens including backticks: [`edw_전월`, ...]
     var re = /`([^`]+)`/g;
@@ -86,12 +131,13 @@ window.onerror = function (msg, src, lineno, colno, err) {
   function buildDwMappings(sql) {
     var programId = extractDwProgramIdFromLogDeclare(sql);
     var serviceName = extractServiceNameFromProgramId(programId);
+    var isMonthly = isMonthlyProgramId(programId);
 
     var mappings = [];
 
     // Core variables
     if (programId) mappings.push({ from: '@program_id', to: quoteSqlString(programId) });
-    mappings.push({ from: '@standard_date', to: quoteSqlString('99991231') });
+    mappings.push({ from: '@standard_date', to: quoteSqlString(isMonthly ? '999912' : '99991231') });
     mappings.push({ from: '@job_seq', to: "''" });
 
     if (serviceName) {
@@ -119,10 +165,11 @@ window.onerror = function (msg, src, lineno, colno, err) {
     var tblId = extractHeaderValue(sql, 'TBL_ID');
 
     var pgmId = stripSqlSuffix(pgmRaw);
+    var isMonthly = isMonthlyProgramId(pgmId);
 
     var mappings = [];
     if (pgmId) mappings.push({ from: '@program_id', to: quoteSqlString(pgmId) });
-    mappings.push({ from: '@standard_date', to: quoteSqlString('99991231') });
+    mappings.push({ from: '@standard_date', to: quoteSqlString(isMonthly ? '999912' : '99991231') });
     if (tblId) mappings.push({ from: '@table_name', to: quoteSqlString(tblId) });
 
     // Growing variables: vs_job_d / vs_job_yyyymm may appear with or without backticks.
@@ -390,6 +437,14 @@ window.onerror = function (msg, src, lineno, colno, err) {
 
     var sql = inputEl.value || '';
 
+    var programIdForRule = '';
+    if (mode === 'DW') {
+      programIdForRule = extractDwProgramIdFromLogDeclare(sql);
+    } else {
+      programIdForRule = stripSqlSuffix(extractHeaderValue(sql, 'PGM ID'));
+    }
+    var isMonthly = isMonthlyProgramId(programIdForRule);
+
     var useUiEl = byId('useUiMappings');
     var useUiMappings = !!(useUiEl && useUiEl.checked);
 
@@ -397,6 +452,10 @@ window.onerror = function (msg, src, lineno, colno, err) {
     var userMappings = readMappingsFromUi();
     var defaultMappings = (mode === 'DW') ? buildDwMappings(sql) : buildDmMappings(sql);
     var mergedMappings = mergeMappings(defaultMappings, userMappings);
+
+    // Enforce requirement: if PGM ID contains "%월%", @standard_date must be yyyymm (6 digits)
+    defaultMappings = coerceMappingsForMonthlyProgram(defaultMappings, isMonthly);
+    mergedMappings = coerceMappingsForMonthlyProgram(mergedMappings, isMonthly);
 
     // Keep the UI in sync with this conversion, while preserving user-entered values.
     renderMappings(mergedMappings, defaultMappings, userMappings, useUiMappings);

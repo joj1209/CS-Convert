@@ -113,7 +113,7 @@
     
     // 같은 인덱스(줄 번호)끼리 매칭하여 { from, to } 객체 생성
     for (let i = 0; i < len; i++) {
-      pairs.push({from: before[i], to: after[i] ?? ""});
+      pairs.push({from: before[i], to: (after[i] == null ? "" : after[i])});
     }
 
     // 줄 수 불일치 시 안내 메시지 생성

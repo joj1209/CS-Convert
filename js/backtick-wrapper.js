@@ -6,6 +6,12 @@ window.onerror = function (msg, src, lineno, colno, err) {
 (function () {
   function byId(id) { return document.getElementById(id); }
 
+  function getValue(id) {
+    var el = byId(id);
+    var v = el ? el.value : '';
+    return (v == null ? '' : v).toString();
+  }
+
   function setStatus(message, isError) {
     var el = byId('status');
     if (!el) return;
@@ -330,7 +336,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
   }
 
   function convert() {
-    var input = (byId('inputSql').value ?? '').toString();
+    var input = getValue('inputSql');
 
     var options = {
       skipStrings: !!(byId('skipStrings') && byId('skipStrings').checked),
@@ -366,7 +372,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
   }
 
   function removeBackticksAction() {
-    var input = (byId('inputSql').value ?? '').toString();
+    var input = getValue('inputSql');
 
     var options = {
       skipStrings: !!(byId('skipStrings') && byId('skipStrings').checked),
@@ -427,7 +433,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
     }
 
     byId('copyBtn').addEventListener('click', function () {
-      var text = (byId('outputSql').value ?? '').toString();
+      var text = getValue('outputSql');
       if (!text) {
         setStatus('복사할 결과가 없습니다. 먼저 변환하세요.', true);
         return;

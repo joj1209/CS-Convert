@@ -7,7 +7,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
   function byId(id) { return document.getElementById(id); }
 
   function normalizeToken(s) {
-    return (s ?? '').toString().trim();
+    return (s == null ? '' : s).toString().trim();
   }
 
   function extractHeaderValue(sql, headerName) {
@@ -26,11 +26,11 @@ window.onerror = function (msg, src, lineno, colno, err) {
     // --DECLARE `log_프로그램ID` STRING DEFAULT 'wcsbv_서비스내역01';
     const re = /(?:--\s*)?DECLARE\s+`?log_프로그램ID`?\s+STRING\s+DEFAULT\s+'([^']*)'\s*;/i;
     const match = re.exec(sql);
-    return match ? (match[1] ?? '').trim() : '';
+    return match ? (match[1] == null ? '' : match[1]).trim() : '';
   }
 
   function extractServiceName(programId) {
-    const s = (programId ?? '').toString();
+    const s = (programId == null ? '' : programId).toString();
     if (!s) return '';
 
     // Derive a logical "service name" from programId.
@@ -55,7 +55,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
 
     for (let i = 0; i < len; i++) {
       const from = normalizeToken(beforeInputs[i].value);
-      const currentTo = (afterInputs[i].value ?? '').trim();
+      const currentTo = (afterInputs[i].value == null ? '' : afterInputs[i].value).trim();
 
       if ((from === '{vs_pgm_id}' || from === '{PGM_ID}' || from === '@program_id') && headerPgmId) {
         afterInputs[i].value = headerPgmId;
@@ -91,7 +91,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
 
     for (let i = 0; i < len; i++) {
       const from = normalizeToken(beforeInputs[i].value);
-      const currentTo = (afterInputs[i].value ?? '').trim();
+      const currentTo = (afterInputs[i].value == null ? '' : afterInputs[i].value).trim();
 
       if (from === '@standard_date') {
         if (!currentTo) afterInputs[i].value = 'default';
@@ -136,7 +136,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
       const to = afterInputs[i].value;
 
       if (!from) continue;
-      pairs.push({ from, to: (to ?? '').trim() });
+      pairs.push({ from, to: (to == null ? '' : to).trim() });
     }
 
     return pairs;
@@ -147,7 +147,7 @@ window.onerror = function (msg, src, lineno, colno, err) {
     for (const list of pairLists) {
       for (const pair of list) {
         if (!pair || !pair.from) continue;
-        map.set(pair.from, pair.to ?? '');
+        map.set(pair.from, pair.to == null ? '' : pair.to);
       }
     }
     return Array.from(map.entries()).map(([from, to]) => ({ from, to }));
